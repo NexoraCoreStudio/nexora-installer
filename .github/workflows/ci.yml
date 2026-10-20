@@ -1,0 +1,35 @@
+name: Build and test
+on:
+  push:
+  pull_request:
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout nexora-fido
+        uses: actions/checkout@v4
+        with:
+          repository: NexoraCoreStudio/nexora-fido
+          path: nexora-fido
+      - name: Checkout nexora-usb
+        uses: actions/checkout@v4
+        with:
+          repository: NexoraCoreStudio/nexora-usb
+          path: nexora-usb
+      - name: Checkout nexora
+        uses: actions/checkout@v4
+        with:
+          repository: NexoraCoreStudio/nexora
+          path: nexora
+      - name: Checkout nexora-installer
+        uses: actions/checkout@v4
+        with:
+          path: nexora-installer
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Restore
+        run: dotnet restore nexora-installer/Nexora.Installer.sln
+      - name: Build
+        run: dotnet build nexora-installer/Nexora.Installer.sln -c Release --no-restore

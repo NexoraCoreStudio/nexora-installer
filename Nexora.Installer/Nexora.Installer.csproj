@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Nexora-Setup</AssemblyName>
+    <RootNamespace>Nexora.Installer</RootNamespace>
+    <Product>Nexora</Product>
+    <AssemblyTitle>Nexora Installer</AssemblyTitle>
+    <Version>1.1.0</Version>
+    <ApplicationIcon>Assets\Nexora_Icon.ico</ApplicationIcon>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\Nexora_Icon.png" />
+    <EmbeddedResource Include="Resources\NexoraPayload.zip"
+                      LogicalName="NexoraPayload.zip"
+                      Condition="Exists('Resources\NexoraPayload.zip')" />
+  </ItemGroup>
+</Project>
