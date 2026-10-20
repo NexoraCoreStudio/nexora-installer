@@ -1,4 +1,4 @@
-# Nexora 1.1 - publication de l'application et de l'installateur Avalonia autonome.
+# Nexora 1.2 - publication de l'application et de l'installateur Avalonia autonome.
 # -MakeInstaller produit dist\Nexora-Setup.exe sans dependance Inno Setup.
 # -UseInnoLegacy conserve la procedure Inno Setup historique si necessaire.
 [CmdletBinding()]
@@ -32,7 +32,7 @@ New-Item -ItemType Directory -Force -Path $cleanPublish, $setupOutput, $dist | O
 try {
     Write-Host 'Publication Nexora Windows x64...' -ForegroundColor Cyan
     & dotnet publish $appProject -c Release -r win-x64 --self-contained true `
-        -p:PublishSingleFile=false -p:Version=1.1.0 -o $cleanPublish
+        -p:PublishSingleFile=false -p:Version=1.2.0 -o $cleanPublish
     if ($LASTEXITCODE -ne 0) { throw 'Echec de la publication Nexora.' }
     if (!(Test-Path -LiteralPath (Join-Path $cleanPublish 'Nexora.exe'))) {
         throw 'Nexora.exe est manquant dans les fichiers publies.'
@@ -96,7 +96,7 @@ try {
     Write-Host 'Compilation de Nexora-Setup.exe (Avalonia)...' -ForegroundColor Cyan
     & dotnet publish $installerProject -c Release -r win-x64 --self-contained true `
         -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
-        -p:PublishTrimmed=false -p:Version=1.1.0 -o $setupOutput
+        -p:PublishTrimmed=false -p:Version=1.2.0 -o $setupOutput
     if ($LASTEXITCODE -ne 0) { throw 'Echec de compilation de Nexora-Setup.exe.' }
 
     $setup = Join-Path $setupOutput 'Nexora-Setup.exe'

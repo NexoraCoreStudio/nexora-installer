@@ -28,7 +28,7 @@ internal static class InstallerEngine
     private sealed class InstalledState
     {
         public InstalledState() { }
-        public string Version { get; set; } = "1.1";
+        public string Version { get; set; } = "1.2";
         public List<string> Files { get; set; } = [];
         public List<string> Shortcuts { get; set; } = [];
     }
@@ -268,7 +268,7 @@ internal static class InstallerEngine
             else report("Mode développement : entrée de désinstallation Windows non créée.");
 
             progress.Report(100);
-            report("Nexora 1.1 installé avec succès.");
+            report("Nexora 1.2 installé avec succès.");
             return target;
         }
         catch
@@ -314,7 +314,7 @@ internal static class InstallerEngine
             dynamic link = shell.CreateShortcut(path);
             link.TargetPath = exe;
             link.WorkingDirectory = Path.GetDirectoryName(exe);
-            link.Description = "Nexora 1.1 — Clé de sécurité virtuelle";
+            link.Description = "Nexora 1.2 — Clé de sécurité virtuelle";
             link.IconLocation = exe + ",0";
             link.Save();
             state.Shortcuts.Add(path);
@@ -344,7 +344,7 @@ internal static class InstallerEngine
         using var key = Registry.CurrentUser.CreateSubKey(UninstallRegistryPath)
             ?? throw new IOException("Impossible de créer l'entrée de désinstallation.");
         key.SetValue("DisplayName", "Nexora");
-        key.SetValue("DisplayVersion", "1.1");
+        key.SetValue("DisplayVersion", "1.2");
         key.SetValue("Publisher", "Nexora");
         key.SetValue("InstallLocation", location);
         key.SetValue("DisplayIcon", Path.Combine(location, "Nexora.exe"));
