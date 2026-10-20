@@ -45,7 +45,7 @@
           <Border Background="#172640" CornerRadius="12" Padding="15" Margin="0,30,0,0">
             <StackPanel Spacing="7">
               <TextBlock Text="SÉCURITÉ" Foreground="#55DAE7" FontSize="11" FontWeight="Bold"/>
-              <TextBlock Text="Installation locale. Le pilote USB/IP n'est ni téléchargé ni modifié." TextWrapping="Wrap" FontSize="12" Foreground="#ADB9D2"/>
+              <TextBlock Text="Installation locale. Pilote USB/IP installé séparément, uniquement après confirmation et vérification de signature." TextWrapping="Wrap" FontSize="12" Foreground="#ADB9D2"/>
             </StackPanel>
           </Border>
         </StackPanel>
@@ -73,10 +73,12 @@
               <TextBlock x:Name="WindowsStatus" Text="Windows : vérification…" FontSize="15"/>
               <TextBlock x:Name="ArchStatus" Text="Architecture : vérification…" FontSize="15"/>
               <TextBlock x:Name="PayloadStatus" Text="Paquet de Nexora : vérification…" FontSize="15"/>
-              <TextBlock x:Name="UsbIpStatus" Text="USB/IP : vérification…" FontSize="15"/>
+              <TextBlock x:Name="UsbIpStatus" Text="USB/IP : vérification…" FontSize="15" TextWrapping="Wrap"/>
+              <TextBlock x:Name="UsbIpHint" Text="Le pilote et l'utilitaire USB/IP sont vérifiés séparément." FontSize="12" TextWrapping="Wrap" Foreground="#A5C2E1"/>
+              <Button x:Name="InstallUsbDriverButton" Content="Installer un pilote USB/IP signé (.inf)…" Click="InstallUsbDriver_Click" HorizontalAlignment="Left"/>
             </StackPanel>
           </Border>
-          <TextBlock Text="USB/IP doit déjà être configuré si vous voulez émuler une clé USB. Ce programme n'installe aucun pilote." TextWrapping="Wrap" FontSize="13" Foreground="#72CAD9" Margin="0,12,0,0"/>
+          <TextBlock Text="Option : sélectionnez un paquet USB/IP signé (.inf + .cat) obtenu auprès d'une source fiable. Nexora ne télécharge aucun pilote." TextWrapping="Wrap" FontSize="13" Foreground="#72CAD9" Margin="0,12,0,0"/>
         </StackPanel>
 
         <StackPanel x:Name="OptionsPage" IsVisible="False" Spacing="16">

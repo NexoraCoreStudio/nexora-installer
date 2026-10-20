@@ -79,7 +79,7 @@ public partial class MainWindow : Window
         if (page == 1) CheckDiagnostic();
     }
 
-    private void CheckDiagnostic()
+    private async void CheckDiagnostic()
     {
         bool windows = OperatingSystem.IsWindows();
         bool x64 = RuntimeInformation.OSArchitecture == Architecture.X64;
@@ -87,10 +87,101 @@ public partial class MainWindow : Window
         WindowsStatus.Text = windows ? "✓  Windows détecté" : "✕  Windows requis";
         ArchStatus.Text = x64 ? "✓  Architecture x64" : "✕  Architecture x64 requise";
         PayloadStatus.Text = payload ? "✓  Fichiers Nexora inclus dans l'installateur" : "✕  Fichiers Nexora absents : recréez le Setup";
-        UsbIpStatus.Text = InstallerEngine.IsUsbIpCliPresent()
-            ? "i  Utilitaire USB/IP détecté (pilote non vérifié)"
-            : "!  Utilitaire USB/IP non détecté (à configurer séparément)";
+        UsbIpStatus.Text = "USB/IP : vérification du contrôleur Windows…";
+        UsbIpHint.Text = "Contrôle distinct du pilote et de l'utilitaire usbip.exe.";
+        InstallUsbDriverButton.IsEnabled = false;
         NextButton.IsEnabled = windows && x64 && payload;
+        if (!windows) return;
+        var status = await UsbIpDriverSupport.CheckAsync();
+        if (_page != 1 || _uninstallMode || _busy) return;
+        UsbIpStatus.Text = status.ControllerWorking
+            ? "✓  Pilote VHCI USB/IP opérationnel" +
+              (string.IsNullOrWhiteSpace(status.Version) ? "" : " — version " + status.Version)
+            : status.ControllerDetected
+                ? "!  Contrôleur USB/IP détecté, mais en erreur"
+                : "!  Pilote/contrôleur USB/IP non détecté";
+        UsbIpHint.Text = status.Details + Environment.NewLine +
+            (status.ClientPresent ? "Client usbip.exe : installé." :
+                "Client usbip.exe : absent (nécessite le paquet officiel complet).") +
+            (string.IsNullOrWhiteSpace(status.Signer) ? "" :
+                Environment.NewLine + "Signataire : " + status.Signer);
+        InstallUsbDriverButton.IsEnabled = !status.ControllerWorking;
+    }
+
+    private async void InstallUsbDriver_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_busy || _page != 1) return;
+        var selected = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Sélectionner le pilote USB/IP signé (.inf)",
+            AllowMultiple = false,
+            FileTypeFilter = [new FilePickerFileType("Pilote Windows INF") { Patterns = ["*.inf"] }]
+        });
+        if (selected.Count == 0) return;
+        string path = selected[0].Path.LocalPath;
+        try
+        {
+            InstallUsbDriverButton.IsEnabled = false;
+            UsbIpStatus.Text = "USB/IP : vérification du catalogue signé…";
+            string signer = await UsbIpDriverSupport.VerifySignedPackageAsync(path);
+            bool accepted = await ConfirmDriverInstallAsync(path, signer);
+            if (!accepted) return;
+
+            UsbIpStatus.Text = "USB/IP : attente de la confirmation administrateur Windows…";
+            int exitCode = await UsbIpDriverSupport.InstallInfAsync(path);
+            if (exitCode != 0)
+                throw new IOException("PnPUtil a terminé avec le code " + exitCode +
+                                      ". Contrôlez le package signé et la compatibilité Windows.");
+            await ShowErrorAsync("PnPUtil a terminé. Si le contrôleur reste absent, " +
+                "un paquet officiel complet peut être nécessaire pour créer le périphérique VHCI " +
+                "et installer usbip.exe. Aucun pilote n'a été supprimé.");
+        }
+        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            await ShowErrorAsync("Autorisation administrateur refusée. Aucune modification effectuée.");
+        }
+        catch (Exception ex)
+        {
+            await ShowErrorAsync("Impossible d'installer le pilote : " + ex.Message);
+        }
+        finally
+        {
+            CheckDiagnostic();
+        }
+    }
+
+    private async Task<bool> ConfirmDriverInstallAsync(string file, string signer)
+    {
+        var dialog = new Window
+        {
+            Title = "Nexora — Autorisation pilote",
+            Width = 600, Height = 265, CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = new SolidColorBrush(Color.Parse("#111A31"))
+        };
+        var no = new Button { Content = "Annuler", MinWidth = 100 };
+        var yes = new Button { Content = "Installer (UAC)", MinWidth = 140 };
+        no.Click += (_, _) => dialog.Close(false);
+        yes.Click += (_, _) => dialog.Close(true);
+        dialog.Content = new StackPanel
+        {
+            Margin = new Avalonia.Thickness(22), Spacing = 16,
+            Children =
+            {
+                new TextBlock { Text = "Installer ce pilote Windows signé ?",
+                                FontSize = 19, FontWeight = FontWeight.SemiBold },
+                new TextBlock { Text = "Fichier : " + file + Environment.NewLine +
+                                       "Signature : " + signer,
+                                TextWrapping = TextWrapping.Wrap, FontSize = 12 },
+                new TextBlock { Text = "Windows demandera les droits administrateur. " +
+                                       "Nexora ne désactive pas la vérification des signatures.",
+                                TextWrapping = TextWrapping.Wrap },
+                new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal,
+                                 HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                                 Spacing = 12, Children = { no, yes } }
+            }
+        };
+        return await dialog.ShowDialog<bool>(this);
     }
 
     private async void Next_Click(object? sender, RoutedEventArgs e)
@@ -173,10 +264,15 @@ public partial class MainWindow : Window
         LogText.Text = "";
         InstallStatus.Text = "Vérification de l'archive intégrée…";
 
+        // Progress can be reported from a ThreadPool thread. Always dispatch UI updates
+        // explicitly; do not rely on the caller's SynchronizationContext.
         var progress = new Progress<int>(value =>
         {
-            InstallProgress.Value = value;
-            PercentageText.Text = value + " %";
+            Dispatcher.UIThread.Post(() =>
+            {
+                InstallProgress.Value = value;
+                PercentageText.Text = value + " %";
+            });
         });
         void Report(string message)
         {
@@ -187,11 +283,16 @@ public partial class MainWindow : Window
             });
         }
 
+        // Avalonia controls must only be accessed from the UI thread. Snapshot their
+        // values BEFORE starting the background installation worker.
+        bool desktopShortcut = DesktopCheckbox.IsChecked == true;
+        bool startupShortcut = StartupCheckbox.IsChecked == true;
+
         try
         {
             string installedPath = await Task.Run(() => InstallerEngine.Install(
-                requested, DesktopCheckbox.IsChecked == true,
-                StartupCheckbox.IsChecked == true, progress, Report));
+                requested, desktopShortcut,
+                startupShortcut, progress, Report));
             _installedFolder = installedPath;
             _installed = true;
             InstalledLocation.Text = installedPath;
