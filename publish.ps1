@@ -1,10 +1,12 @@
-# Nexora 1.2 - publication de l'application et de l'installateur Avalonia autonome.
+# Nexora 1.3 - publication de l'application et de l'installateur Avalonia autonome.
 # -MakeInstaller produit dist\Nexora-Setup.exe sans dependance Inno Setup.
 # -UseInnoLegacy conserve la procedure Inno Setup historique si necessaire.
 [CmdletBinding()]
 param(
     [switch]$MakeInstaller,
-    [switch]$UseInnoLegacy
+    [switch]$UseInnoLegacy,
+    [switch]$NexoraDev,
+    [string]$DistDirectory = ''
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -12,14 +14,38 @@ Set-StrictMode -Version Latest
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\nexora')).Path
 $appProject = Join-Path $root 'Nexora.Gui\Nexora.Gui.csproj'
 $installerProject = Join-Path $PSScriptRoot 'Nexora.Installer\Nexora.Installer.csproj'
-$dist = Join-Path $root 'dist'
+$dist = if ([string]::IsNullOrWhiteSpace($DistDirectory)) { Join-Path $root 'dist' } else { [IO.Path]::GetFullPath($DistDirectory) }
 $appOutput = Join-Path $dist 'Nexora'
 
 if (!(Test-Path -LiteralPath $appProject)) { throw 'Nexora.Gui.csproj est introuvable.' }
 if (!(Get-Command dotnet -ErrorAction SilentlyContinue)) { throw 'SDK .NET 8 requis.' }
 if ($MakeInstaller -and $UseInnoLegacy) { throw 'Choisir -MakeInstaller ou -UseInnoLegacy, pas les deux.' }
-if (Get-Process -Name Nexora -ErrorAction SilentlyContinue) {
-    throw "Quittez Nexora depuis la zone de notification avant de le publier."
+# Une compilation exportee n'installe rien et n'ecrase pas l'application en cours.
+# Le controle des processus ne doit donc bloquer que lorsque leurs executables
+# pourraient etre reecrits (ou que le script est lance dans son mode historique).
+$runningNexora = @(Get-Process -Name Nexora -ErrorAction SilentlyContinue)
+if ($runningNexora.Count -gt 0) {
+    if ([string]::IsNullOrWhiteSpace($DistDirectory)) {
+        throw 'Nexora est encore actif. Quittez-le depuis la zone de notification pour une publication dans le dossier dist par defaut, ou fournissez -DistDirectory vers un dossier export separe.'
+    }
+
+    # Si Nexora est execute depuis la sortie de compilation ou depuis le dossier
+    # de destination, MSBuild/Copy-Item pourrait toucher un fichier verrouille.
+    $sourceBin = [IO.Path]::GetFullPath((Join-Path $root 'Nexora.Gui\bin')).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+    $exportApp = [IO.Path]::GetFullPath($appOutput).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+    foreach ($runningProcess in $runningNexora) {
+        $executable = $null
+        try { $executable = $runningProcess.Path } catch { $executable = $null }
+        if ([string]::IsNullOrWhiteSpace($executable)) {
+            throw ('Nexora (PID ' + $runningProcess.Id + ') est actif, mais son chemin ne peut pas etre controle. Quittez-le pour garantir une publication sure.')
+        }
+        $absoluteExecutable = [IO.Path]::GetFullPath($executable)
+        if ($absoluteExecutable.StartsWith($sourceBin, [StringComparison]::OrdinalIgnoreCase) -or
+            $absoluteExecutable.StartsWith($exportApp, [StringComparison]::OrdinalIgnoreCase)) {
+            throw ('Nexora (PID ' + $runningProcess.Id + ') utilise un executable du dossier de compilation/export : ' + $absoluteExecutable + '. Quittez cette instance avant de continuer.')
+        }
+    }
+    Write-Host 'Nexora est en cours d execution, mais la publication utilise un dossier export isole : aucun executable actif ne sera remplace.' -ForegroundColor Yellow
 }
 
 # A fresh staging directory prevents stale files, user configuration or keys from
@@ -31,8 +57,9 @@ New-Item -ItemType Directory -Force -Path $cleanPublish, $setupOutput, $dist | O
 
 try {
     Write-Host 'Publication Nexora Windows x64...' -ForegroundColor Cyan
-    & dotnet publish $appProject -c Release -r win-x64 --self-contained true `
-        -p:PublishSingleFile=false -p:Version=1.2.0 -o $cleanPublish
+    $appProps = @('-p:PublishSingleFile=false', '-p:Version=1.3.0')
+    if ($NexoraDev) { $appProps += '-p:NexoraDev=true' }
+    & dotnet publish $appProject -c Release -r win-x64 --self-contained true @appProps -o $cleanPublish
     if ($LASTEXITCODE -ne 0) { throw 'Echec de la publication Nexora.' }
     if (!(Test-Path -LiteralPath (Join-Path $cleanPublish 'Nexora.exe'))) {
         throw 'Nexora.exe est manquant dans les fichiers publies.'
@@ -67,6 +94,9 @@ try {
     foreach ($file in $publishedFiles) {
         $relative = $file.FullName.Substring($cleanPublish.Length + 1).Replace('\', '/')
         if ($relative -eq $manifestName) { throw 'Conflit avec le fichier de manifeste du Setup.' }
+        if ($relative -eq 'Nexora.vault' -or $relative -eq '.nexora-install-state.json') {
+            throw 'Un fichier de donnees utilisateur se trouve dans le paquet : ' + $relative
+        }
         $hashes[$relative] = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash
     }
     @{ Files = $hashes } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
@@ -96,7 +126,7 @@ try {
     Write-Host 'Compilation de Nexora-Setup.exe (Avalonia)...' -ForegroundColor Cyan
     & dotnet publish $installerProject -c Release -r win-x64 --self-contained true `
         -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
-        -p:PublishTrimmed=false -p:Version=1.2.0 -o $setupOutput
+        -p:PublishTrimmed=false -p:Version=1.3.0 -o $setupOutput
     if ($LASTEXITCODE -ne 0) { throw 'Echec de compilation de Nexora-Setup.exe.' }
 
     $setup = Join-Path $setupOutput 'Nexora-Setup.exe'
@@ -105,6 +135,9 @@ try {
     Copy-Item -LiteralPath $setup -Destination $dest -Force
     Write-Host "Installateur personnalise : $dest" -ForegroundColor Green
     Write-Host 'Ce setup ne modifie pas USB/IP et ne necessite pas Inno Setup.' -ForegroundColor Cyan
+    if ($NexoraDev) { Write-Host 'Build DEV - publier uniquement dans NexoraCoreStudio/nexora-dev.' -ForegroundColor Yellow }
+    else { Write-Host 'Build production - publier dans NexoraCoreStudio/nexora.' -ForegroundColor Yellow }
+    Write-Host 'Le controleur de mises a jour exige le digest SHA-256 de cet asset.' -ForegroundColor Yellow
 }
 finally {
     # Avoid keeping a second huge embedded copy of the published application in sources.
