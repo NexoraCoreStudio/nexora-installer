@@ -1,4 +1,4 @@
-# Nexora 1.3 - publication de l'application et de l'installateur Avalonia autonome.
+# Nexora 1.3.5 - publication de l'application et de l'installateur Avalonia autonome.
 # -MakeInstaller produit dist\Nexora-Setup.exe sans dependance Inno Setup.
 # -UseInnoLegacy conserve la procedure Inno Setup historique si necessaire.
 [CmdletBinding()]
@@ -19,6 +19,12 @@ $appOutput = Join-Path $dist 'Nexora'
 
 if (!(Test-Path -LiteralPath $appProject)) { throw 'Nexora.Gui.csproj est introuvable.' }
 if (!(Get-Command dotnet -ErrorAction SilentlyContinue)) { throw 'SDK .NET 8 requis.' }
+# Source de vérité unique : la version inscrite dans le projet Nexora.
+$versionNodes = @((Select-Xml -LiteralPath $appProject -XPath '/Project/PropertyGroup/Version').Node)
+if ($versionNodes.Count -ne 1) { throw 'Version de Nexora introuvable ou ambigue dans Nexora.Gui.csproj.' }
+$version = [string]$versionNodes[0].InnerText.Trim()
+if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Format de version Nexora invalide (X.Y.Z attendu).' }
+Write-Host "Version Nexora : $version" -ForegroundColor Cyan
 if ($MakeInstaller -and $UseInnoLegacy) { throw 'Choisir -MakeInstaller ou -UseInnoLegacy, pas les deux.' }
 # Une compilation exportee n'installe rien et n'ecrase pas l'application en cours.
 # Le controle des processus ne doit donc bloquer que lorsque leurs executables
@@ -57,7 +63,7 @@ New-Item -ItemType Directory -Force -Path $cleanPublish, $setupOutput, $dist | O
 
 try {
     Write-Host 'Publication Nexora Windows x64...' -ForegroundColor Cyan
-    $appProps = @('-p:PublishSingleFile=false', '-p:Version=1.3.0')
+    $appProps = @('-p:PublishSingleFile=false', ('-p:Version=' + $version))
     if ($NexoraDev) { $appProps += '-p:NexoraDev=true' }
     & dotnet publish $appProject -c Release -r win-x64 --self-contained true @appProps -o $cleanPublish
     if ($LASTEXITCODE -ne 0) { throw 'Echec de la publication Nexora.' }
@@ -126,7 +132,7 @@ try {
     Write-Host 'Compilation de Nexora-Setup.exe (Avalonia)...' -ForegroundColor Cyan
     & dotnet publish $installerProject -c Release -r win-x64 --self-contained true `
         -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
-        -p:PublishTrimmed=false -p:Version=1.3.0 -o $setupOutput
+        -p:PublishTrimmed=false "-p:Version=$version" -o $setupOutput
     if ($LASTEXITCODE -ne 0) { throw 'Echec de compilation de Nexora-Setup.exe.' }
 
     $setup = Join-Path $setupOutput 'Nexora-Setup.exe'
@@ -135,9 +141,9 @@ try {
     Copy-Item -LiteralPath $setup -Destination $dest -Force
     Write-Host "Installateur personnalise : $dest" -ForegroundColor Green
     Write-Host 'Ce setup ne modifie pas USB/IP et ne necessite pas Inno Setup.' -ForegroundColor Cyan
-    if ($NexoraDev) { Write-Host 'Build DEV - publier uniquement dans NexoraCoreStudio/nexora-dev.' -ForegroundColor Yellow }
+    if ($NexoraDev) { Write-Host 'Build DEV prive : diagnostic local uniquement. Ne jamais publier.' -ForegroundColor Yellow }
     else { Write-Host 'Build production - publier dans NexoraCoreStudio/nexora.' -ForegroundColor Yellow }
-    Write-Host 'Le controleur de mises a jour exige le digest SHA-256 de cet asset.' -ForegroundColor Yellow
+    Write-Host 'La Release GitHub publique contient un ZIP avec ce Setup (controle SHA-256).' -ForegroundColor Yellow
 }
 finally {
     # Avoid keeping a second huge embedded copy of the published application in sources.

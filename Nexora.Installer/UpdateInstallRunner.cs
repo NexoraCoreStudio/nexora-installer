@@ -54,11 +54,11 @@ internal static class UpdateInstallRunner
                     throw new IOException("Nexora est toujours lancé. Installation refusée.");
 
                 var (desktop, startup) = GetInstalledShortcutPreferences(target);
-                Log("Début mise à jour Nexora 1.3 ; aucune action sur USB/IP ou le coffre.");
+                Log("Début mise à jour Nexora 1.3.5 ; aucune action sur USB/IP ou le coffre.");
                 string installed = InstallerEngine.Install(target, desktop, startup,
                     new Progress<int>(), Log);
                 UpdateVersionMetadata(installed);
-                Log("Installation terminée et version 1.3 enregistrée.");
+                Log("Installation terminée et version 1.3.5 enregistrée.");
                 Process.Start(new ProcessStartInfo(Path.Combine(installed, "Nexora.exe"))
                 {
                     UseShellExecute = true,
@@ -97,12 +97,12 @@ internal static class UpdateInstallRunner
         var path = Path.Combine(folder, InstallState);
         var doc = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(File.ReadAllText(path))
             ?? throw new InvalidDataException("État de l'installation illisible.");
-        using var versionDoc = JsonDocument.Parse("\"1.3\"");
+        using var versionDoc = JsonDocument.Parse("\"1.3.5\"");
         doc["Version"] = versionDoc.RootElement.Clone();
         File.WriteAllText(path, JsonSerializer.Serialize(doc, new JsonSerializerOptions { WriteIndented = true }));
         using var key = Registry.CurrentUser.OpenSubKey(UninstallKey, writable: true)
             ?? throw new IOException("Enregistrement de désinstallation absent.");
-        key.SetValue("DisplayVersion", "1.3");
+        key.SetValue("DisplayVersion", "1.3.5");
     }
 
     public static void RepairInteractiveInstallVersion()
@@ -114,7 +114,7 @@ internal static class UpdateInstallRunner
         var executable = Path.Combine(folder, "Nexora.exe");
         if (!File.Exists(executable)) return;
         var version = FileVersionInfo.GetVersionInfo(executable);
-        if (version.FileMajorPart == 1 && version.FileMinorPart == 3)
+        if (version.FileMajorPart == 1 && version.FileMinorPart == 3 && version.FileBuildPart == 5)
             UpdateVersionMetadata(folder);
     }
 
