@@ -1,4 +1,4 @@
-# Nexora 1.3.5 - publication de l'application et de l'installateur Avalonia autonome.
+# Nexora 1.4.0 - publication de l'application et de l'installateur Avalonia autonome.
 # -MakeInstaller produit dist\Nexora-Setup.exe sans dependance Inno Setup.
 # -UseInnoLegacy conserve la procedure Inno Setup historique si necessaire.
 [CmdletBinding()]

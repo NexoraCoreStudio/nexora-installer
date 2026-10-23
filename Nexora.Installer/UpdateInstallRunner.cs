@@ -54,11 +54,11 @@ internal static class UpdateInstallRunner
                     throw new IOException("Nexora est toujours lancé. Installation refusée.");
 
                 var (desktop, startup) = GetInstalledShortcutPreferences(target);
-                Log("Début mise à jour Nexora 1.3.5 ; aucune action sur USB/IP ou le coffre.");
+                Log("Début mise à jour Nexora ; aucune action sur USB/IP ou le coffre.");
                 string installed = InstallerEngine.Install(target, desktop, startup,
                     new Progress<int>(), Log);
                 UpdateVersionMetadata(installed);
-                Log("Installation terminée et version 1.3.5 enregistrée.");
+                Log("Installation terminée et version enregistrée depuis Nexora.exe.");
                 Process.Start(new ProcessStartInfo(Path.Combine(installed, "Nexora.exe"))
                 {
                     UseShellExecute = true,
@@ -92,29 +92,31 @@ internal static class UpdateInstallRunner
 
     private static void UpdateVersionMetadata(string folder)
     {
-        // The legacy InstallerEngine currently serializes v1.2 by default. Update its
-        // registry/state metadata after a successful 1.3 in-place installation.
+        // Register the actual installed Nexora.exe version (not a fixed installer string).
         var path = Path.Combine(folder, InstallState);
         var doc = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(File.ReadAllText(path))
             ?? throw new InvalidDataException("État de l'installation illisible.");
-        using var versionDoc = JsonDocument.Parse("\"1.3.5\"");
-        doc["Version"] = versionDoc.RootElement.Clone();
+        var fileVersion = FileVersionInfo.GetVersionInfo(Path.Combine(folder, "Nexora.exe"));
+        if (fileVersion.FileMajorPart <= 0 || fileVersion.FileMinorPart < 0 || fileVersion.FileBuildPart < 0)
+            throw new InvalidDataException("Version de Nexora.exe introuvable.");
+        string installedVersion = $"{fileVersion.FileMajorPart}.{fileVersion.FileMinorPart}.{fileVersion.FileBuildPart}";
+        doc["Version"] = JsonSerializer.SerializeToElement(installedVersion);
         File.WriteAllText(path, JsonSerializer.Serialize(doc, new JsonSerializerOptions { WriteIndented = true }));
         using var key = Registry.CurrentUser.OpenSubKey(UninstallKey, writable: true)
             ?? throw new IOException("Enregistrement de désinstallation absent.");
-        key.SetValue("DisplayVersion", "1.3.5");
+        key.SetValue("DisplayVersion", installedVersion);
     }
 
     public static void RepairInteractiveInstallVersion()
     {
         // The existing wizard delegates copying to the 1.2 InstallerEngine. After a
-        // successful 1.3 wizard installation, correct its legacy metadata as well.
+        // successful installation, correct its legacy metadata as well.
         var folder = InstallerEngine.GetInstalledDirectory();
         if (folder is null) return;
         var executable = Path.Combine(folder, "Nexora.exe");
         if (!File.Exists(executable)) return;
         var version = FileVersionInfo.GetVersionInfo(executable);
-        if (version.FileMajorPart == 1 && version.FileMinorPart == 3 && version.FileBuildPart == 5)
+        if (version.FileMajorPart > 0)
             UpdateVersionMetadata(folder);
     }
 
