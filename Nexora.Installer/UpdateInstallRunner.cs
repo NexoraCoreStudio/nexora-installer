@@ -50,8 +50,7 @@ internal static class UpdateInstallRunner
                         throw new TimeoutException("Nexora ne s'est pas arrêté dans le délai de sécurité.");
                 }
                 catch (ArgumentException) { /* The originating process has already exited. */ }
-                if (Process.GetProcessesByName("Nexora").Length > 0)
-                    throw new IOException("Nexora est toujours lancé. Installation refusée.");
+                NexoraProcessGuard.EnsureStopped(target);
 
                 var (desktop, startup) = GetInstalledShortcutPreferences(target);
                 Log("Début mise à jour Nexora ; aucune action sur USB/IP ou le coffre.");

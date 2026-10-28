@@ -128,8 +128,8 @@ internal static class InstallerEngine
         IProgress<int> progress, Action<string> report)
     {
         string target = ValidateDestination(folder);
-        if (Process.GetProcessesByName("Nexora").Length != 0)
-            throw new IOException("Quittez Nexora depuis la zone de notification avant l'installation.");
+        // Ignore unrelated portable/DEV instances, but never overwrite a running Production EXE.
+        NexoraProcessGuard.EnsureStopped(target);
 
         string temp = Path.Combine(Path.GetTempPath(), "NexoraInstaller-" + Guid.NewGuid().ToString("N"));
         string staging = Path.Combine(temp, "staging");
@@ -250,19 +250,28 @@ internal static class InstallerEngine
             File.WriteAllText(stateFile, stateJson);
             progress.Report(94);
 
-            // A cached installer outside the application directory provides Add/Remove Programs
-            // with a self-contained uninstaller, without locking app files during removal.
+            // A unique cached installer for each installation avoids overwriting a locked EXE.
+            // This is the installer used by Windows Settings > Installed apps > Uninstall.
             string setupCache = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "NexoraInstaller", "Nexora-Setup.exe");
+                "Nexora", "InstallerCache",
+                "Nexora-Setup-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") +
+                "-" + Guid.NewGuid().ToString("N") + ".exe");
             string runningExe = Environment.ProcessPath ?? "";
             if (File.Exists(runningExe)
                 && runningExe.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
                 && !Path.GetFileName(runningExe).Equals("dotnet.exe", StringComparison.OrdinalIgnoreCase))
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(setupCache)!);
-                if (!runningExe.Equals(setupCache, StringComparison.OrdinalIgnoreCase))
-                    File.Copy(runningExe, setupCache, true);
+                File.Copy(runningExe, setupCache, overwrite: false);
+                using (var sourceSetup = File.OpenRead(runningExe))
+                using (var cachedSetup = File.OpenRead(setupCache))
+                {
+                    if (sourceSetup.Length != cachedSetup.Length ||
+                        !CryptographicOperations.FixedTimeEquals(
+                            SHA256.HashData(sourceSetup), SHA256.HashData(cachedSetup)))
+                        throw new IOException("Verification SHA-256 de la copie de l'installateur echouee.");
+                }
                 RegisterUninstall(target, setupCache);
             }
             else report("Mode développement : entrée de désinstallation Windows non créée.");
@@ -357,8 +366,7 @@ internal static class InstallerEngine
     {
         string dir = GetInstalledDirectory()
             ?? throw new FileNotFoundException("Installation Nexora introuvable.");
-        if (Process.GetProcessesByName("Nexora").Length > 0)
-            throw new IOException("Quittez Nexora avant la désinstallation.");
+        NexoraProcessGuard.EnsureStopped(dir);
         string stateFile = Path.Combine(dir, InstalledStateName);
         var state = JsonSerializer.Deserialize<InstalledState>(File.ReadAllText(stateFile))
             ?? throw new InvalidDataException("Manifeste d'installation illisible.");
