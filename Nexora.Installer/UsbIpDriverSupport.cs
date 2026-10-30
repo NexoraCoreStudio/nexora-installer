@@ -21,7 +21,7 @@ internal static class UsbIpDriverSupport
 
         bool cli = InstallerEngine.IsUsbIpCliPresent();
         const string script = """
-            $d = Get-PnpDevice -ErrorAction SilentlyContinue |
+            $d = Get-PnpDevice -PresentOnly -ErrorAction SilentlyContinue |
                  Where-Object { $_.InstanceId -like 'ROOT\USB\*' -and $_.FriendlyName -match 'USBip|VHCI' } | Select-Object -First 1
             if ($null -eq $d) { 'NONE'; exit 0 }
             $v = Get-PnpDeviceProperty -InstanceId $d.InstanceId -KeyName 'DEVPKEY_Device_DriverVersion' -ErrorAction SilentlyContinue

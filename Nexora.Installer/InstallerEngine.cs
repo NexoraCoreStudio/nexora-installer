@@ -14,6 +14,7 @@ namespace Nexora.Installer;
 /// </summary>
 internal static class InstallerEngine
 {
+    internal static string DisplayVersion => typeof(InstallerEngine).Assembly.GetName().Version?.ToString(3) ?? "inconnue";
     private const string PayloadResource = "NexoraPayload.zip";
     private const string PayloadManifestName = "NexoraPayload.manifest.json";
     private const string InstalledStateName = ".nexora-install-state.json";
@@ -28,7 +29,7 @@ internal static class InstallerEngine
     private sealed class InstalledState
     {
         public InstalledState() { }
-        public string Version { get; set; } = "1.2";
+        public string Version { get; set; } = DisplayVersion;
         public List<string> Files { get; set; } = [];
         public List<string> Shortcuts { get; set; } = [];
     }
@@ -40,23 +41,32 @@ internal static class InstallerEngine
     public static bool HasEmbeddedPayload() =>
         typeof(InstallerEngine).Assembly.GetManifestResourceInfo(PayloadResource) != null;
 
+    internal static Stream OpenPayload() => typeof(InstallerEngine).Assembly.GetManifestResourceStream(PayloadResource)
+        ?? throw new InvalidDataException("Paquet Nexora absent. Utilisez un installateur exporté avec -MakeInstaller.");
+
+    internal static PackageInfo CheckBeforeInstall(string folder)
+    {
+        string target = ValidateDestination(folder);
+        NexoraProcessGuard.EnsureStopped(target);
+        using var stream = OpenPayload();
+        var package = InstallerPreflight.Inspect(stream);
+        InstallerPreflight.CheckStorage(target, package);
+        return package;
+    }
+
+    internal static void CheckRegisteredLocation(string target)
+    {
+        string? installed = GetInstalledDirectory();
+        if (installed is not null && !Path.GetFullPath(installed).Equals(Path.GetFullPath(target), StringComparison.OrdinalIgnoreCase))
+            throw new IOException("Nexora est déjà enregistré dans " + installed + ". Utilisez ce dossier pour la mise à jour ; le déplacement d’une installation n’est pas pris en charge.");
+    }
+
     public static bool IsUsbIpCliPresent()
     {
         if (!OperatingSystem.IsWindows()) return false;
-        string[] candidates =
-        [
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "USBip", "usbip.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "USBip", "usbip.exe")
-        ];
-        if (candidates.Any(File.Exists)) return true;
-        foreach (var directory in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator))
-        {
-            if (string.IsNullOrWhiteSpace(directory)) continue;
-            try { if (File.Exists(Path.Combine(directory.Trim('"'), "usbip.exe"))) return true; }
-            catch { /* Invalid PATH component */ }
-        }
-        return false;
+        return File.Exists(UsbIpCliPath);
     }
+    internal static string UsbIpCliPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "USBip", "usbip.exe");
 
     public static string? GetInstalledDirectory()
     {
@@ -80,6 +90,7 @@ internal static class InstallerEngine
             throw new IOException("Les dossiers réseau ne sont pas pris en charge.");
 
         string target = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
+        InstallerPreflight.RejectRedirectedPath(target);
         string root = Path.GetPathRoot(target) ?? "";
         if (string.Equals(target, Path.TrimEndingDirectorySeparator(root), StringComparison.OrdinalIgnoreCase))
             throw new IOException("La racine d'un disque ne peut pas être utilisée.");
@@ -95,6 +106,8 @@ internal static class InstallerEngine
             && Directory.EnumerateFileSystemEntries(target).Any()
             && !File.Exists(Path.Combine(target, InstalledStateName)))
             throw new IOException("Le dossier contient déjà des fichiers inconnus. Choisissez un nouveau dossier Nexora.");
+        if (File.Exists(target)) throw new IOException("La destination est un fichier, pas un dossier.");
+        InstallerPreflight.ValidateExistingState(target);
         return target;
     }
 
@@ -103,33 +116,40 @@ internal static class InstallerEngine
         || path.StartsWith(Path.TrimEndingDirectorySeparator(parent) + Path.DirectorySeparatorChar,
             StringComparison.OrdinalIgnoreCase);
 
-    private static string SafeRelative(string relative)
-    {
-        relative = relative.Replace('\\', '/');
-        if (string.IsNullOrWhiteSpace(relative) || relative.StartsWith('/') || relative.Contains(':'))
-            throw new InvalidDataException("Nom de fichier invalide dans le paquet.");
-        string[] segments = relative.Split('/');
-        if (segments.Any(s => s is "" or "." or ".."))
-            throw new InvalidDataException("Chemin interdit dans le paquet : " + relative);
-        return relative;
-    }
+    private static string SafeRelative(string relative) => InstallerPreflight.SafeRelative(relative);
 
-    private static string SafeTarget(string root, string relative)
-    {
-        relative = SafeRelative(relative);
-        var target = Path.GetFullPath(Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar)));
-        if (!target.StartsWith(Path.TrimEndingDirectorySeparator(root) + Path.DirectorySeparatorChar,
-            StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("Un chemin tente de sortir du dossier cible.");
-        return target;
-    }
+    private static string SafeTarget(string root, string relative) => InstallerPreflight.Target(root, relative);
 
     public static string Install(string folder, bool desktopShortcut, bool startupShortcut,
         IProgress<int> progress, Action<string> report)
     {
+        using var payload = OpenPayload();
+        return InstallFromStream(folder, desktopShortcut, startupShortcut, progress, report, payload, true);
+    }
+
+    // The test path disables Windows integration, never the payload or destination checks.
+    internal static string InstallFromStream(string folder, bool desktopShortcut, bool startupShortcut,
+        IProgress<int> progress, Action<string> report, Stream payloadStream, bool integrateWindows)
+    {
+        using var operation = new Mutex(false, @"Local\NexoraInstallerOperation");
+        bool acquired;
+        try { acquired = operation.WaitOne(0); }
+        catch (AbandonedMutexException) { acquired = true; }
+        if (!acquired) throw new IOException("Une installation ou désinstallation est déjà en cours.");
+        try { return InstallCore(folder, desktopShortcut, startupShortcut, progress, report, payloadStream, integrateWindows); }
+        finally { operation.ReleaseMutex(); }
+    }
+
+    private static string InstallCore(string folder, bool desktopShortcut, bool startupShortcut,
+        IProgress<int> progress, Action<string> report, Stream payloadStream, bool integrateWindows)
+    {
         string target = ValidateDestination(folder);
         // Ignore unrelated portable/DEV instances, but never overwrite a running Production EXE.
         NexoraProcessGuard.EnsureStopped(target);
+        if (integrateWindows) CheckRegisteredLocation(target);
+        var package = InstallerPreflight.Inspect(payloadStream);
+        InstallerPreflight.CheckStorage(target, package);
+        payloadStream.Position = 0;
 
         string temp = Path.Combine(Path.GetTempPath(), "NexoraInstaller-" + Guid.NewGuid().ToString("N"));
         string staging = Path.Combine(temp, "staging");
@@ -141,14 +161,23 @@ internal static class InstallerEngine
         var newShortcuts = new List<string>();
         string stateFile = Path.Combine(target, InstalledStateName);
         string? formerState = File.Exists(stateFile) ? File.ReadAllText(stateFile) : null;
+        bool keepRecovery = false;
+        string? createdCache = null;
+        Dictionary<string, (object Value, RegistryValueKind Kind)>? formerRegistry = null;
+        bool registryTouched = false;
+        if (integrateWindows)
+        {
+            using var registry = Registry.CurrentUser.OpenSubKey(UninstallRegistryPath);
+            if (registry is not null)
+                formerRegistry = registry.GetValueNames().ToDictionary(name => name,
+                    name => (registry.GetValue(name, "", RegistryValueOptions.DoNotExpandEnvironmentNames)!, registry.GetValueKind(name)));
+        }
 
         try
         {
             report("Lecture de l'archive intégrée…");
             progress.Report(3);
-            using var payloadStream = typeof(InstallerEngine).Assembly.GetManifestResourceStream(PayloadResource)
-                ?? throw new InvalidDataException("Archive NexoraPayload.zip absente. Recréez le setup.");
-            using var zip = new ZipArchive(payloadStream, ZipArchiveMode.Read);
+            using var zip = new ZipArchive(payloadStream, ZipArchiveMode.Read, leaveOpen: true);
             var manifestEntry = zip.GetEntry(PayloadManifestName)
                 ?? throw new InvalidDataException("Manifeste du paquet manquant.");
             PayloadManifest manifest;
@@ -194,7 +223,7 @@ internal static class InstallerEngine
             var oldState = formerState is null
                 ? null
                 : JsonSerializer.Deserialize<InstalledState>(formerState);
-            var installed = new InstalledState();
+            var installed = new InstalledState { Version = DisplayVersion };
             int copied = 0;
             foreach (string relative in manifest.Files.Keys.OrderBy(v => v, StringComparer.OrdinalIgnoreCase))
             {
@@ -214,19 +243,29 @@ internal static class InstallerEngine
                 copied++;
                 progress.Report(50 + (int)(40.0 * copied / manifest.Files.Count));
             }
+            // Re-read every installed binary before creating OS integration.
+            foreach (var item in manifest.Files)
+            {
+                using var verified = File.OpenRead(SafeTarget(target, item.Key));
+                if (!Convert.ToHexString(SHA256.HashData(verified)).Equals(item.Value, StringComparison.OrdinalIgnoreCase))
+                    throw new IOException("Vérification après copie échouée : " + item.Key);
+            }
+            report("Vérification après copie terminée.");
+            if (integrateWindows)
+            {
             report("Création des raccourcis Windows…");
             var exe = Path.Combine(target, "Nexora.exe");
             string startMenuShortcut = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Nexora", "Nexora.lnk");
-            TryCreateShortcut(startMenuShortcut, exe, installed, newShortcuts, report);
+            TryCreateShortcut(startMenuShortcut, exe, installed, newShortcuts, restored, backups, report);
             if (desktopShortcut)
                 TryCreateShortcut(Path.Combine(Environment.GetFolderPath(
                     Environment.SpecialFolder.DesktopDirectory), "Nexora.lnk"), exe,
-                    installed, newShortcuts, report);
+                    installed, newShortcuts, restored, backups, report);
             if (startupShortcut)
                 TryCreateShortcut(Path.Combine(Environment.GetFolderPath(
                     Environment.SpecialFolder.Startup), "Nexora.lnk"), exe,
-                    installed, newShortcuts, report);
+                    installed, newShortcuts, restored, backups, report);
             else
                 // Only remove a startup shortcut if a previous Nexora Installer created it.
                 if (oldState?.Shortcuts.Contains(Path.Combine(Environment.GetFolderPath(
@@ -234,7 +273,13 @@ internal static class InstallerEngine
                     StringComparer.OrdinalIgnoreCase) == true)
                 {
                     var startup = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Startup), "Nexora.lnk");
-                    if (File.Exists(startup)) File.Delete(startup);
+                    if (File.Exists(startup))
+                    {
+                        string backup = Path.Combine(backups, Guid.NewGuid().ToString("N") + ".lnk");
+                        File.Copy(startup, backup);
+                        restored[startup] = backup;
+                        File.Delete(startup);
+                    }
                 }
 
             // Preserve previously created shortcuts when the options are unchanged.
@@ -243,6 +288,7 @@ internal static class InstallerEngine
                 if (File.Exists(previous) && IsExpectedShortcut(previous)
                     && !installed.Shortcuts.Contains(previous, StringComparer.OrdinalIgnoreCase))
                     installed.Shortcuts.Add(previous);
+            }
             }
 
             string stateJson = JsonSerializer.Serialize(installed,
@@ -258,12 +304,13 @@ internal static class InstallerEngine
                 "Nexora-Setup-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") +
                 "-" + Guid.NewGuid().ToString("N") + ".exe");
             string runningExe = Environment.ProcessPath ?? "";
-            if (File.Exists(runningExe)
+            if (integrateWindows && File.Exists(runningExe)
                 && runningExe.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
                 && !Path.GetFileName(runningExe).Equals("dotnet.exe", StringComparison.OrdinalIgnoreCase))
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(setupCache)!);
                 File.Copy(runningExe, setupCache, overwrite: false);
+                createdCache = setupCache;
                 using (var sourceSetup = File.OpenRead(runningExe))
                 using (var cachedSetup = File.OpenRead(setupCache))
                 {
@@ -272,58 +319,83 @@ internal static class InstallerEngine
                             SHA256.HashData(sourceSetup), SHA256.HashData(cachedSetup)))
                         throw new IOException("Verification SHA-256 de la copie de l'installateur echouee.");
                 }
+                registryTouched = true;
                 RegisterUninstall(target, setupCache);
             }
             else report("Mode développement : entrée de désinstallation Windows non créée.");
 
             progress.Report(100);
-            report("Nexora 1.2 installé avec succès.");
+            report("Nexora " + DisplayVersion + " installé avec succès.");
             return target;
         }
-        catch
+        catch (Exception failure)
         {
             // Best-effort rollback of application binaries. No credential folder is touched.
             foreach (var entry in restored)
             {
-                try { File.Copy(entry.Value, entry.Key, true); } catch { /* Keep original exception */ }
+                try { File.Copy(entry.Value, entry.Key, true); } catch { keepRecovery = true; }
             }
             foreach (var file in newlyCreated)
             {
-                try { File.Delete(file); } catch { /* Keep original exception */ }
+                try { File.Delete(file); } catch { keepRecovery = true; }
             }
             foreach (var shortcut in newShortcuts)
             {
-                try { File.Delete(shortcut); } catch { /* Keep original exception */ }
+                try { File.Delete(shortcut); } catch { keepRecovery = true; }
             }
             try
             {
                 if (formerState != null) File.WriteAllText(stateFile, formerState);
                 else if (File.Exists(stateFile)) File.Delete(stateFile);
             }
-            catch { /* Keep original exception */ }
+            catch { keepRecovery = true; }
+            if (registryTouched)
+            {
+                try
+                {
+                    if (formerRegistry is null) Registry.CurrentUser.DeleteSubKeyTree(UninstallRegistryPath, false);
+                    else
+                    {
+                        using var registry = Registry.CurrentUser.CreateSubKey(UninstallRegistryPath);
+                        foreach (var name in registry.GetValueNames()) registry.DeleteValue(name);
+                        foreach (var entry in formerRegistry) registry.SetValue(entry.Key, entry.Value.Value, entry.Value.Kind);
+                    }
+                }
+                catch { keepRecovery = true; }
+            }
+            if (createdCache is not null) { try { File.Delete(createdCache); } catch { } }
+            if (keepRecovery)
+                throw new IOException("Installation interrompue ; restauration incomplète. Sauvegardes conservées dans : " + backups, failure);
             throw;
         }
         finally
         {
-            try { Directory.Delete(temp, true); } catch { /* Temporary file cleanup may be deferred */ }
+            if (!keepRecovery) { try { Directory.Delete(temp, true); } catch { /* Temporary file cleanup may be deferred */ } }
         }
     }
 
     private static void TryCreateShortcut(string path, string exe, InstalledState state,
-        List<string> created, Action<string> report)
+        List<string> created, Dictionary<string, string> restored, string backups, Action<string> report)
     {
         if (!OperatingSystem.IsWindows()) return;
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             bool existed = File.Exists(path);
+            InstallerPreflight.RejectRedirectedPath(path);
+            if (existed)
+            {
+                string backup = Path.Combine(backups, Guid.NewGuid().ToString("N") + ".lnk");
+                File.Copy(path, backup);
+                restored[path] = backup;
+            }
             Type shellType = Type.GetTypeFromProgID("WScript.Shell")
                 ?? throw new IOException("WScript.Shell indisponible.");
             dynamic shell = Activator.CreateInstance(shellType)!;
             dynamic link = shell.CreateShortcut(path);
             link.TargetPath = exe;
             link.WorkingDirectory = Path.GetDirectoryName(exe);
-            link.Description = "Nexora 1.2 — Clé de sécurité virtuelle";
+            link.Description = "Nexora — Clé de sécurité virtuelle";
             link.IconLocation = exe + ",0";
             link.Save();
             state.Shortcuts.Add(path);
@@ -353,7 +425,7 @@ internal static class InstallerEngine
         using var key = Registry.CurrentUser.CreateSubKey(UninstallRegistryPath)
             ?? throw new IOException("Impossible de créer l'entrée de désinstallation.");
         key.SetValue("DisplayName", "Nexora");
-        key.SetValue("DisplayVersion", "1.2");
+        key.SetValue("DisplayVersion", DisplayVersion);
         key.SetValue("Publisher", "Nexora");
         key.SetValue("InstallLocation", location);
         key.SetValue("DisplayIcon", Path.Combine(location, "Nexora.exe"));
@@ -364,8 +436,21 @@ internal static class InstallerEngine
 
     public static void Uninstall()
     {
+        using var operation = new Mutex(false, @"Local\NexoraInstallerOperation");
+        bool acquired;
+        try { acquired = operation.WaitOne(0); }
+        catch (AbandonedMutexException) { acquired = true; }
+        if (!acquired) throw new IOException("Une installation ou désinstallation est déjà en cours.");
+        try { UninstallCore(); }
+        finally { operation.ReleaseMutex(); }
+    }
+
+    private static void UninstallCore()
+    {
         string dir = GetInstalledDirectory()
             ?? throw new FileNotFoundException("Installation Nexora introuvable.");
+        InstallerPreflight.RejectRedirectedPath(dir);
+        InstallerPreflight.ValidateExistingState(dir);
         NexoraProcessGuard.EnsureStopped(dir);
         string stateFile = Path.Combine(dir, InstalledStateName);
         var state = JsonSerializer.Deserialize<InstalledState>(File.ReadAllText(stateFile))

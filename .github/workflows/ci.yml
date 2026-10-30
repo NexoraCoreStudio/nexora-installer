@@ -40,3 +40,5 @@ jobs:
         run: dotnet restore nexora-installer/Nexora.Installer.sln
       - name: Build
         run: dotnet build nexora-installer/Nexora.Installer.sln -c Release --no-restore
+      - name: Installer validation and isolated rollback tests
+        run: dotnet run --project nexora-installer/Nexora.Installer.Tests -c Release --no-build

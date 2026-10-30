@@ -108,8 +108,7 @@ internal static class UpdateInstallRunner
 
     public static void RepairInteractiveInstallVersion()
     {
-        // The existing wizard delegates copying to the 1.2 InstallerEngine. After a
-        // successful installation, correct its legacy metadata as well.
+        // Compatibility helper for callers that repair metadata from the installed executable.
         var folder = InstallerEngine.GetInstalledDirectory();
         if (folder is null) return;
         var executable = Path.Combine(folder, "Nexora.exe");

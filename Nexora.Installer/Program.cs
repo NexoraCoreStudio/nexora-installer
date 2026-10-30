@@ -8,6 +8,18 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // Read-only packaging smoke test, also available on the exported single-file Setup.
+        if (args.Contains("--verify-package", StringComparer.Ordinal))
+        {
+            try
+            {
+                using var stream = InstallerEngine.OpenPayload();
+                var package = InstallerPreflight.Inspect(stream);
+                Console.WriteLine($"OK Nexora {InstallerEngine.DisplayVersion}: {package.Files.Count} fichiers, {package.Bytes} octets, SHA-256 vérifiés.");
+            }
+            catch (Exception ex) { Console.Error.WriteLine(ex.Message); Environment.ExitCode = 1; }
+            return;
+        }
         if (args.Contains("--apply-update", StringComparer.Ordinal))
         {
             Environment.ExitCode = UpdateInstallRunner.Run(args);
