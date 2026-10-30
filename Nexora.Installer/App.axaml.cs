@@ -15,14 +15,6 @@ public partial class App : Application
             bool uninstall = Array.Exists(desktop.Args ?? Array.Empty<string>(),
                 item => item.Equals("--uninstall", StringComparison.OrdinalIgnoreCase));
             desktop.MainWindow = new MainWindow(uninstall);
-            if (!uninstall)
-            {
-                desktop.Exit += (_, _) =>
-                {
-                    try { UpdateInstallRunner.RepairInteractiveInstallVersion(); }
-                    catch { /* Never block exit; installation errors are handled by the wizard. */ }
-                };
-            }
         }
         base.OnFrameworkInitializationCompleted();
     }

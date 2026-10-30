@@ -15,19 +15,28 @@ public partial class MainWindow : Window
     private bool _busy;
     private bool _installed;
     private string? _installedFolder;
+    private bool _checking;
+    private bool _systemReady;
+    private bool _usbReady;
+    private bool _closed;
 
     private readonly Border[] _navBorders;
     private readonly TextBlock[] _navLabels;
     private readonly Control[] _pages;
 
+    public MainWindow() : this(false) { }
+
     public MainWindow(bool uninstallMode)
     {
         InitializeComponent();
+        VersionBadge.Text = "v" + InstallerEngine.DisplayVersion + " · Windows x64";
+        Closing += (_, e) => { if (_busy) e.Cancel = true; };
+        Closed += (_, _) => _closed = true;
         _uninstallMode = uninstallMode;
         _navBorders = [NavStep0, NavStep1, NavStep2, NavStep3, NavStep4];
         _navLabels = [NavText0, NavText1, NavText2, NavText3, NavText4];
         _pages = [WelcomePage, DiagnosticPage, OptionsPage, ProgressPage, FinishedPage];
-        FolderBox.Text = InstallerEngine.DefaultInstallDirectory;
+        FolderBox.Text = InstallerEngine.GetInstalledDirectory() ?? InstallerEngine.DefaultInstallDirectory;
 
         if (uninstallMode)
         {
@@ -57,18 +66,19 @@ public partial class MainWindow : Window
         {
             _pages[i].IsVisible = i == page;
             _navBorders[i].Background = i == page
-                ? new SolidColorBrush(Color.Parse("#2F2356"))
+                ? new SolidColorBrush(Color.Parse("#294D7E"))
                 : Brushes.Transparent;
             _navLabels[i].Foreground = i == page
-                ? new SolidColorBrush(Color.Parse("#F3E6FF"))
-                : new SolidColorBrush(Color.Parse("#8796B3"));
+                ? Brushes.White
+                : new SolidColorBrush(Color.Parse("#BBC9DF"));
         }
 
         BackButton.IsEnabled = !_busy && page is > 0 and < 3;
+        BackButton.Content = "Retour";
         BackButton.IsVisible = page != 4;
         NextButton.Content = page switch
         {
-            2 => "Installer Nexora  →",
+            2 => "Vérifier et installer →",
             3 => "Installation…",
             4 => "Terminer",
             _ => "Continuer  →"
@@ -76,41 +86,101 @@ public partial class MainWindow : Window
         NextButton.IsEnabled = !_busy;
         CancelButton.IsEnabled = !_busy;
         CancelButton.Content = page == 4 ? "Fermer" : "Annuler";
-        if (page == 1) CheckDiagnostic();
+        if (page == 1) _ = CheckDiagnosticAsync();
     }
 
-    private async void CheckDiagnostic()
+    private async Task CheckDiagnosticAsync()
     {
+        if (_checking || _closed || _busy) { UpdateDiagnosticGate(); return; }
+        _checking = true;
+        _systemReady = false;
+        _usbReady = false;
+        RetryDiagnosticButton.IsEnabled = false;
+        InstallUsbDriverButton.IsEnabled = false;
+        UpdateDiagnosticGate();
+        string target = FolderBox.Text?.Trim() ?? "";
         bool windows = OperatingSystem.IsWindows();
         bool x64 = RuntimeInformation.OSArchitecture == Architecture.X64;
-        bool payload = InstallerEngine.HasEmbeddedPayload();
-        WindowsStatus.Text = windows ? "✓  Windows détecté" : "✕  Windows requis";
+        WindowsStatus.Text = windows ? "✓  Windows détecté — " + Environment.OSVersion.Version : "✕  Windows requis";
         ArchStatus.Text = x64 ? "✓  Architecture x64" : "✕  Architecture x64 requise";
-        PayloadStatus.Text = payload ? "✓  Fichiers Nexora inclus dans l'installateur" : "✕  Fichiers Nexora absents : recréez le Setup";
+        PayloadStatus.Text = "Intégrité du paquet : vérification SHA-256…";
+        DestinationStatus.Text = "Dossier : vérification…";
+        SpaceStatus.Text = "Espace disque et accès : en attente";
+        ExistingStatus.Text = "Installation existante : en attente";
         UsbIpStatus.Text = "USB/IP : vérification du contrôleur Windows…";
-        UsbIpHint.Text = "Contrôle distinct du pilote et de l'utilitaire usbip.exe.";
-        InstallUsbDriverButton.IsEnabled = false;
-        NextButton.IsEnabled = windows && x64 && payload;
-        if (!windows) return;
-        var status = await UsbIpDriverSupport.CheckAsync();
-        if (_page != 1 || _uninstallMode || _busy) return;
-        UsbIpStatus.Text = status.ControllerWorking
-            ? "✓  Pilote VHCI USB/IP opérationnel" +
-              (string.IsNullOrWhiteSpace(status.Version) ? "" : " — version " + status.Version)
-            : status.ControllerDetected
-                ? "!  Contrôleur USB/IP détecté, mais en erreur"
-                : "!  Pilote/contrôleur USB/IP non détecté";
-        UsbIpHint.Text = status.Details + Environment.NewLine +
-            (status.ClientPresent ? "Client usbip.exe : installé." :
-                "Client usbip.exe : absent (nécessite le paquet officiel complet).") +
-            (string.IsNullOrWhiteSpace(status.Signer) ? "" :
-                Environment.NewLine + "Signataire : " + status.Signer);
-        InstallUsbDriverButton.IsEnabled = !status.ControllerWorking;
+        try
+        {
+            PackageInfo? package = null;
+            try
+            {
+                package = await Task.Run(() => { using var stream = InstallerEngine.OpenPayload(); return InstallerPreflight.Inspect(stream); });
+                PayloadStatus.Text = $"✓  {package.Files.Count} fichiers vérifiés · {package.Bytes / 1048576d:N1} Mo décompressés";
+            }
+            catch (Exception ex) { PayloadStatus.Text = "✕  Paquet : " + ex.Message; }
+            try
+            {
+                await Task.Run(() =>
+                {
+                    InstallerEngine.ValidateDestination(target);
+                    InstallerEngine.CheckRegisteredLocation(target);
+                    NexoraProcessGuard.EnsureStopped(target);
+                    if (package is not null) InstallerPreflight.CheckStorage(target, package);
+                });
+                DestinationStatus.Text = "✓  Dossier local valide : " + target;
+                SpaceStatus.Text = package is null ? "—  Espace non vérifié : paquet invalide" : "✓  Espace disponible, fichiers accessibles et test d’écriture réussis";
+                ExistingStatus.Text = File.Exists(Path.Combine(target, InstallerPreflight.StateName))
+                    ? "✓  Installation reconnue · mise à jour des fichiers, coffre conservé"
+                    : "✓  Nouvelle installation · aucun dossier inconnu remplacé";
+                _systemReady = windows && x64 && package is not null;
+            }
+            catch (Exception ex)
+            {
+                DestinationStatus.Text = "✕  Préparation : " + ex.Message;
+                SpaceStatus.Text = "—  Corrigez le point bloquant et relancez le contrôle";
+                ExistingStatus.Text = "—  Installation suspendue";
+            }
+            var status = await UsbIpDriverSupport.CheckAsync();
+            _usbReady = status.ControllerWorking && status.ClientPresent;
+            UsbIpStatus.Text = _usbReady ? "✓  Contrôleur et client USB/IP disponibles" : "!  USB/IP incomplet — connexion des clés indisponible";
+            UsbIpHint.Text = status.Details + Environment.NewLine +
+                (status.ClientPresent ? "Client trouvé au chemin utilisé par Nexora : Program Files\\USBip." : "Client attendu : " + InstallerEngine.UsbIpCliPath) +
+                (string.IsNullOrWhiteSpace(status.Version) ? "" : "\nVersion pilote : " + status.Version);
+        }
+        catch (Exception ex) { DiagnosticSummary.Text = "Vérification impossible : " + ex.Message; }
+        finally
+        {
+            _checking = false;
+            if (!_closed)
+            {
+                RetryDiagnosticButton.IsEnabled = true;
+                InstallUsbDriverButton.IsEnabled = windows && !_usbReady;
+                UpdateDiagnosticGate();
+            }
+        }
+    }
+
+    private void UpdateDiagnosticGate()
+    {
+        if (NextButton is null || DiagnosticSummary is null) return;
+        bool ready = !_checking && _systemReady && (_usbReady || DeferredUsbCheckBox.IsChecked == true);
+        if (_page == 1) NextButton.IsEnabled = !_busy && ready;
+        DiagnosticSummary.Text = _checking ? "Vérifications en cours…" : !_systemReady
+            ? "Un point bloquant empêche l’installation. Corrigez-le puis relancez les vérifications."
+            : ready ? (_usbReady ? "Votre environnement est prêt." : "Installation de l’application uniquement : USB/IP reste à configurer.")
+            : "Installez les prérequis USB/IP ou choisissez explicitement de les configurer plus tard.";
+        DiagnosticSummary.Foreground = new SolidColorBrush(Color.Parse(ready ? "#16704C" : "#98420D"));
+    }
+
+    private void DeferredUsb_Changed(object? sender, RoutedEventArgs e) => UpdateDiagnosticGate();
+    private async void RetryDiagnostic_Click(object? sender, RoutedEventArgs e) => await CheckDiagnosticAsync();
+    private void ConfigureDestination_Click(object? sender, RoutedEventArgs e)
+    {
+        if (!_busy && !_checking) ShowPage(2);
     }
 
     private async void InstallUsbDriver_Click(object? sender, RoutedEventArgs e)
     {
-        if (_busy || _page != 1) return;
+        if (_busy || _checking || _page != 1) return;
         var selected = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Sélectionner le pilote USB/IP signé (.inf)",
@@ -118,6 +188,8 @@ public partial class MainWindow : Window
             FileTypeFilter = [new FilePickerFileType("Pilote Windows INF") { Patterns = ["*.inf"] }]
         });
         if (selected.Count == 0) return;
+        _busy = true;
+        NextButton.IsEnabled = BackButton.IsEnabled = CancelButton.IsEnabled = false;
         string path = selected[0].Path.LocalPath;
         try
         {
@@ -129,10 +201,10 @@ public partial class MainWindow : Window
 
             UsbIpStatus.Text = "USB/IP : attente de la confirmation administrateur Windows…";
             int exitCode = await UsbIpDriverSupport.InstallInfAsync(path);
-            if (exitCode != 0)
+            if (exitCode is not (0 or 3010))
                 throw new IOException("PnPUtil a terminé avec le code " + exitCode +
                                       ". Contrôlez le package signé et la compatibilité Windows.");
-            await ShowErrorAsync("PnPUtil a terminé. Si le contrôleur reste absent, " +
+            await ShowErrorAsync((exitCode == 3010 ? "Un redémarrage Windows est nécessaire. " : "PnPUtil a terminé. ") + "Si le contrôleur reste absent, " +
                 "un paquet officiel complet peut être nécessaire pour créer le périphérique VHCI " +
                 "et installer usbip.exe. Aucun pilote n'a été supprimé.");
         }
@@ -146,7 +218,8 @@ public partial class MainWindow : Window
         }
         finally
         {
-            CheckDiagnostic();
+            _busy = false;
+            ShowPage(1);
         }
     }
 
@@ -157,7 +230,7 @@ public partial class MainWindow : Window
             Title = "Nexora — Autorisation pilote",
             Width = 600, Height = 265, CanResize = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Background = new SolidColorBrush(Color.Parse("#111A31"))
+            Background = Brushes.White
         };
         var no = new Button { Content = "Annuler", MinWidth = 100 };
         var yes = new Button { Content = "Installer (UAC)", MinWidth = 140 };
@@ -187,6 +260,7 @@ public partial class MainWindow : Window
     private async void Next_Click(object? sender, RoutedEventArgs e)
     {
         if (_busy) return;
+        if (_page == 1 && (_checking || !_systemReady || (!_usbReady && DeferredUsbCheckBox.IsChecked != true))) return;
         if (_page == 4)
         {
             if (_installed && LaunchCheckbox.IsChecked == true && _installedFolder != null)
@@ -198,7 +272,8 @@ public partial class MainWindow : Window
                 }
                 catch (Exception ex)
                 {
-                    InstallStatus.Text = "Nexora est installé mais n'a pas pu être lancé : " + ex.Message;
+                    await ShowErrorAsync("Nexora est installé mais n'a pas pu être lancé : " + ex.Message);
+                    return;
                 }
             }
             Close();
@@ -290,12 +365,21 @@ public partial class MainWindow : Window
 
         try
         {
+            if (DeferredUsbCheckBox.IsChecked != true)
+            {
+                var driver = await UsbIpDriverSupport.CheckAsync();
+                if (!driver.ControllerWorking || !driver.ClientPresent)
+                    throw new IOException("USB/IP n’est plus prêt. Revenez aux vérifications ou choisissez l’installation de l’application uniquement.");
+            }
             string installedPath = await Task.Run(() => InstallerEngine.Install(
                 requested, desktopShortcut,
                 startupShortcut, progress, Report));
             _installedFolder = installedPath;
             _installed = true;
             InstalledLocation.Text = installedPath;
+            FinishedReadiness.Text = DeferredUsbCheckBox.IsChecked == true
+                ? "USB/IP a été différé : configurez le pilote et le client avant de connecter une clé virtuelle."
+                : "Prérequis USB/IP contrôlés. Vérifiez ensuite un enregistrement et une connexion FIDO2.";
             _busy = false;
             ShowPage(4);
         }
@@ -318,10 +402,11 @@ public partial class MainWindow : Window
         {
             Title = "Nexora — Attention",
             Width = 500,
-            Height = 210,
+            SizeToContent = SizeToContent.Height,
+            MaxHeight = 550,
             CanResize = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Background = new SolidColorBrush(Color.Parse("#111A31"))
+            Background = Brushes.White
         };
         var button = new Button { Content = "Compris", HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right };
         button.Click += (_, _) => dialog.Close();
@@ -331,7 +416,7 @@ public partial class MainWindow : Window
             Spacing = 18,
             Children =
             {
-                new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, FontSize = 15 },
+                new ScrollViewer { MaxHeight = 380, Content = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, FontSize = 15 } },
                 button
             }
         };
@@ -340,6 +425,8 @@ public partial class MainWindow : Window
 
     private async void Uninstall_Click(object? sender, RoutedEventArgs e)
     {
+        if (_busy) return;
+        _busy = true;
         UninstallButton.IsEnabled = false;
         CancelButton.IsEnabled = false;
         UninstallStatus.Text = "Désinstallation en cours…";
@@ -355,7 +442,26 @@ public partial class MainWindow : Window
         }
         finally
         {
+            _busy = false;
             CancelButton.IsEnabled = true;
         }
+    }
+
+    private async void SaveReport_Click(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Compte rendu d’installation", SuggestedFileName = "Nexora-installation.txt",
+                DefaultExtension = "txt", FileTypeChoices = [new FilePickerFileType("Texte") { Patterns = ["*.txt"] }]
+            });
+            if (file is null) return;
+            await using var stream = await file.OpenWriteAsync();
+            stream.SetLength(0);
+            await using var writer = new StreamWriter(stream);
+            await writer.WriteAsync($"Nexora {InstallerEngine.DisplayVersion}\n{DateTimeOffset.Now:O}\n{InstalledLocation.Text}\n{FinishedReadiness.Text}\n\n{LogText.Text}");
+        }
+        catch (Exception ex) { await ShowErrorAsync("Enregistrement impossible : " + ex.Message); }
     }
 }

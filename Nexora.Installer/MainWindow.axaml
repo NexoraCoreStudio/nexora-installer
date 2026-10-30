@@ -1,147 +1,87 @@
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="Nexora.Installer.MainWindow"
-        Title="Nexora — Installation"
-        Width="950" Height="670"
-        MinWidth="820" MinHeight="610"
-        CanResize="True"
-        WindowStartupLocation="CenterScreen"
-        Icon="avares://Nexora-Setup/Assets/Nexora_Icon.png">
-  <Grid RowDefinitions="80,*,82">
-    <!-- Barre de marque -->
-    <Border Grid.Row="0" Background="#111A31" BorderBrush="#293553" BorderThickness="0,0,0,1" Padding="28,12">
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="Nexora.Installer.MainWindow" Title="Nexora — Installation" Width="1020" Height="760" MinWidth="850" MinHeight="620" CanResize="True" WindowStartupLocation="CenterScreen" Icon="avares://Nexora-Setup/Assets/Nexora_Icon.png">
+  <Grid RowDefinitions="76,*,80">
+    <Border Background="White" BorderBrush="#DCE3EE" BorderThickness="0,0,0,1" Padding="26,12">
       <Grid ColumnDefinitions="Auto,*,Auto">
-        <Image Grid.Column="0" Source="avares://Nexora-Setup/Assets/Nexora_Icon.png" Width="48" Height="48"/>
-        <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="1">
-          <TextBlock Text="NEXORA" FontWeight="Bold" FontSize="22" Foreground="#F5F0FF"/>
-          <TextBlock Text="VIRTUAL SECURITY KEY  •  INSTALLER 1.2" FontSize="10" Foreground="#8FA8D2"/>
-        </StackPanel>
-        <Border Grid.Column="2" CornerRadius="8" Background="#1D2845" Padding="12,7" VerticalAlignment="Center">
-          <TextBlock Text="WINDOWS  •  x64" Foreground="#5DE3E4" FontSize="11" FontWeight="Bold"/>
-        </Border>
+        <Image Source="avares://Nexora-Setup/Assets/Nexora_Icon.png" Width="42" Height="42"/>
+        <StackPanel Grid.Column="1" Margin="13,0,0,0" VerticalAlignment="Center" Spacing="2"><TextBlock Text="NEXORA" FontSize="19" FontWeight="Bold"/><TextBlock Text="Assistant d’installation" Classes="muted"/></StackPanel>
+        <Border Grid.Column="2" Background="#EDF3FF" CornerRadius="6" Padding="13,8" VerticalAlignment="Center"><TextBlock x:Name="VersionBadge" Foreground="#2559C7" FontSize="12" FontWeight="SemiBold"/></Border>
       </Grid>
     </Border>
-
-    <Grid Grid.Row="1" ColumnDefinitions="248,*">
-      <!-- Navigation de l'installation -->
-      <Border Grid.Column="0" Background="#11182B" BorderBrush="#293553" BorderThickness="0,0,1,0" Padding="22,33">
-        <StackPanel Spacing="18">
-          <TextBlock Text="PARCOURS D'INSTALLATION" FontWeight="Bold" Foreground="#7589AF" FontSize="11"/>
-          <Border x:Name="NavStep0" Background="#2F2356" CornerRadius="9" Padding="13,13">
-            <TextBlock x:Name="NavText0" Text="01   Bienvenue" Foreground="#F2DEFF" FontWeight="SemiBold"/>
-          </Border>
-          <Border x:Name="NavStep1" Background="Transparent" CornerRadius="9" Padding="13,13">
-            <TextBlock x:Name="NavText1" Text="02   Diagnostic" Foreground="#8796B3"/>
-          </Border>
-          <Border x:Name="NavStep2" Background="Transparent" CornerRadius="9" Padding="13,13">
-            <TextBlock x:Name="NavText2" Text="03   Configuration" Foreground="#8796B3"/>
-          </Border>
-          <Border x:Name="NavStep3" Background="Transparent" CornerRadius="9" Padding="13,13">
-            <TextBlock x:Name="NavText3" Text="04   Installation" Foreground="#8796B3"/>
-          </Border>
-          <Border x:Name="NavStep4" Background="Transparent" CornerRadius="9" Padding="13,13">
-            <TextBlock x:Name="NavText4" Text="05   Terminé" Foreground="#8796B3"/>
-          </Border>
-          <Border Background="#172640" CornerRadius="12" Padding="15" Margin="0,30,0,0">
-            <StackPanel Spacing="7">
-              <TextBlock Text="SÉCURITÉ" Foreground="#55DAE7" FontSize="11" FontWeight="Bold"/>
-              <TextBlock Text="Installation locale. Pilote USB/IP installé séparément, uniquement après confirmation et vérification de signature." TextWrapping="Wrap" FontSize="12" Foreground="#ADB9D2"/>
-            </StackPanel>
-          </Border>
-        </StackPanel>
+    <Grid Grid.Row="1" ColumnDefinitions="224,*">
+      <Border Background="#12233F" Padding="20,30">
+        <DockPanel LastChildFill="True">
+          <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="8,20,8,0"><TextBlock Text="VOTRE ESPACE, VOS DONNÉES" Foreground="#B4C8EA" FontSize="10" FontWeight="Bold"/><TextBlock Text="Installation pour votre compte Windows. Les données du coffre sont conservées." Foreground="#BBC9DF" FontSize="12"/></StackPanel>
+          <StackPanel Spacing="12">
+            <TextBlock Text="INSTALLER NEXORA" Foreground="#8FA9D2" FontSize="11" FontWeight="Bold" Margin="10,0,0,16"/>
+            <Border x:Name="NavStep0" CornerRadius="7" Padding="13"><TextBlock x:Name="NavText0" Text="01   Bienvenue" Foreground="White"/></Border>
+            <Border x:Name="NavStep1" CornerRadius="7" Padding="13"><TextBlock x:Name="NavText1" Text="02   Vérifications" Foreground="#BBC9DF"/></Border>
+            <Border x:Name="NavStep2" CornerRadius="7" Padding="13"><TextBlock x:Name="NavText2" Text="03   Configuration" Foreground="#BBC9DF"/></Border>
+            <Border x:Name="NavStep3" CornerRadius="7" Padding="13"><TextBlock x:Name="NavText3" Text="04   Installation" Foreground="#BBC9DF"/></Border>
+            <Border x:Name="NavStep4" CornerRadius="7" Padding="13"><TextBlock x:Name="NavText4" Text="05   Résultat" Foreground="#BBC9DF"/></Border>
+          </StackPanel>
+        </DockPanel>
       </Border>
-
-      <Grid Grid.Column="1" Margin="38,32,40,24">
-        <StackPanel x:Name="WelcomePage" Spacing="18">
-          <TextBlock Text="Bienvenue dans Nexora" FontSize="32" FontWeight="Bold" Foreground="#F9F7FF"/>
-          <TextBlock Text="Votre clé de sécurité virtuelle, installée à votre façon." FontSize="16" Foreground="#C5CCE0"/>
-          <Border Background="#18243E" CornerRadius="15" Padding="25,28" Margin="0,12,0,0">
-            <StackPanel Spacing="16">
-              <TextBlock Text="✦  AUTHENTIFICATION FIDO2" Foreground="#A9A1FF" FontSize="13" FontWeight="Bold"/>
-              <TextBlock Text="Un installateur conçu pour Nexora : vérification du système, installation des fichiers, raccourcis et démarrage de l'application." TextWrapping="Wrap" Foreground="#DFE8FD" FontSize="15"/>
-              <TextBlock Text="Les données de clés déjà présentes ne sont ni effacées ni migrées automatiquement." TextWrapping="Wrap" Foreground="#68D9E9" FontSize="13"/>
-            </StackPanel>
-          </Border>
-          <TextBlock Text="Version 1.2  ·  Windows 64 bits  ·  Installation par utilisateur" Foreground="#8094B6" FontSize="12"/>
-        </StackPanel>
-
-        <StackPanel x:Name="DiagnosticPage" IsVisible="False" Spacing="15">
-          <TextBlock Text="Diagnostic du système" FontSize="30" FontWeight="Bold"/>
-          <TextBlock Text="Les composants sont vérifiés avant toute écriture sur le disque." TextWrapping="Wrap" Foreground="#B5C2DA"/>
-          <Border Background="#18243E" CornerRadius="12" Padding="19" Margin="0,15,0,0">
-            <StackPanel Spacing="15">
-              <TextBlock x:Name="WindowsStatus" Text="Windows : vérification…" FontSize="15"/>
-              <TextBlock x:Name="ArchStatus" Text="Architecture : vérification…" FontSize="15"/>
-              <TextBlock x:Name="PayloadStatus" Text="Paquet de Nexora : vérification…" FontSize="15"/>
-              <TextBlock x:Name="UsbIpStatus" Text="USB/IP : vérification…" FontSize="15" TextWrapping="Wrap"/>
-              <TextBlock x:Name="UsbIpHint" Text="Le pilote et l'utilitaire USB/IP sont vérifiés séparément." FontSize="12" TextWrapping="Wrap" Foreground="#A5C2E1"/>
-              <Button x:Name="InstallUsbDriverButton" Content="Installer un pilote USB/IP signé (.inf)…" Click="InstallUsbDriver_Click" HorizontalAlignment="Left"/>
-            </StackPanel>
-          </Border>
-          <TextBlock Text="Option : sélectionnez un paquet USB/IP signé (.inf + .cat) obtenu auprès d'une source fiable. Nexora ne télécharge aucun pilote." TextWrapping="Wrap" FontSize="13" Foreground="#72CAD9" Margin="0,12,0,0"/>
-        </StackPanel>
-
-        <StackPanel x:Name="OptionsPage" IsVisible="False" Spacing="16">
-          <TextBlock Text="Configurer l'installation" FontSize="30" FontWeight="Bold"/>
-          <TextBlock Text="Choisissez le dossier de Nexora et les raccourcis facultatifs." Foreground="#BAC6DF" TextWrapping="Wrap"/>
-          <TextBlock Text="DOSSIER D'INSTALLATION" FontSize="11" Foreground="#AFA3F2" FontWeight="Bold" Margin="0,15,0,0"/>
-          <Grid ColumnDefinitions="*,Auto">
-            <TextBox Grid.Column="0" x:Name="FolderBox" Watermark="Chemin complet de destination"/>
-            <Button Grid.Column="1" Margin="10,0,0,0" Content="Parcourir…" Click="Browse_Click"/>
-          </Grid>
-          <Border Background="#18243E" CornerRadius="12" Padding="19" Margin="0,8,0,0">
-            <StackPanel Spacing="17">
-              <CheckBox x:Name="DesktopCheckbox" Content="Créer un raccourci sur le Bureau" IsChecked="True"/>
-              <CheckBox x:Name="StartupCheckbox" Content="Lancer Nexora à l'ouverture de session" IsChecked="False"/>
-              <CheckBox x:Name="LaunchCheckbox" Content="Lancer Nexora après l'installation" IsChecked="True"/>
-            </StackPanel>
-          </Border>
-          <TextBlock Text="Les fichiers de clés existants ne sont jamais supprimés. Une installation sur un dossier inconnu sera refusée." TextWrapping="Wrap" FontSize="12" Foreground="#8EA4C4"/>
-        </StackPanel>
-
-        <StackPanel x:Name="ProgressPage" IsVisible="False" Spacing="17">
-          <TextBlock Text="Installation de Nexora" FontSize="30" FontWeight="Bold"/>
-          <TextBlock x:Name="InstallStatus" Text="Préparation…" Foreground="#B7C7E8" TextWrapping="Wrap"/>
-          <ProgressBar x:Name="InstallProgress" Minimum="0" Maximum="100" Value="0" Height="10" Foreground="#8C68F5"/>
-          <TextBlock x:Name="PercentageText" Text="0 %" FontSize="22" Foreground="#65DEEC" FontWeight="Bold" HorizontalAlignment="Right"/>
-          <Border Background="#111B31" BorderBrush="#2B3A5C" BorderThickness="1" CornerRadius="9" Padding="13">
-            <ScrollViewer Height="185" VerticalScrollBarVisibility="Auto">
-              <TextBlock x:Name="LogText" Text="" FontSize="12" FontFamily="Consolas" Foreground="#9AAFCF" TextWrapping="Wrap"/>
-            </ScrollViewer>
-          </Border>
-        </StackPanel>
-
-        <StackPanel x:Name="FinishedPage" IsVisible="False" Spacing="19">
-          <TextBlock Text="Nexora est prêt !" FontSize="32" FontWeight="Bold" Foreground="#E9E0FF"/>
-          <TextBlock Text="Installation terminée. Vous pouvez maintenant créer votre première clé de sécurité virtuelle." TextWrapping="Wrap" FontSize="17" Foreground="#C9D5EE"/>
-          <Border Background="#162F41" CornerRadius="12" Padding="19" Margin="0,15,0,0">
-            <StackPanel Spacing="8">
-              <TextBlock Text="✓  Application installée" FontWeight="Bold" Foreground="#5DE0D3"/>
-              <TextBlock x:Name="InstalledLocation" Foreground="#ADBDD8" TextWrapping="Wrap"/>
-            </StackPanel>
-          </Border>
-          <TextBlock Text="N'oubliez pas de vérifier USB/IP et les connexions FIDO2 dans Nexora." Foreground="#92ABC9" TextWrapping="Wrap"/>
-        </StackPanel>
-
-        <StackPanel x:Name="UninstallPage" IsVisible="False" Spacing="17">
-          <TextBlock Text="Désinstaller Nexora" FontSize="30" FontWeight="Bold"/>
-          <TextBlock Text="Seuls les fichiers installés et les raccourcis créés par cet installateur seront supprimés." TextWrapping="Wrap" FontSize="15" Foreground="#C7D2E9"/>
-          <Border Background="#183044" CornerRadius="12" Padding="18">
-            <TextBlock Text="Vos clés privées, vos identifiants FIDO2 et vos paramètres utilisateur ne seront pas effacés." TextWrapping="Wrap" Foreground="#6CE5DF"/>
-          </Border>
-          <TextBlock x:Name="UninstallStatus" Text="Confirmez la désinstallation ci-dessous." Foreground="#B8C7E2" TextWrapping="Wrap"/>
-          <Button x:Name="UninstallButton" Classes="primary" Content="Désinstaller l'application" HorizontalAlignment="Left" Click="Uninstall_Click"/>
-        </StackPanel>
-      </Grid>
+      <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Grid Margin="34,30,34,28">
+          <StackPanel x:Name="WelcomePage" Spacing="20">
+            <TextBlock Text="Installez Nexora en confiance." Classes="heading"/>
+            <TextBlock Text="Un parcours guidé pour préparer votre environnement et installer votre clé de sécurité virtuelle." Foreground="#52647C" FontSize="16"/>
+            <Border Classes="card" Margin="0,8,0,0"><StackPanel Spacing="20">
+              <StackPanel Spacing="5"><TextBlock Text="01   Vérifier avant de commencer" FontWeight="SemiBold"/><TextBlock Text="Système, intégrité du paquet, espace libre, accès au dossier et prérequis USB/IP." Classes="muted"/></StackPanel>
+              <StackPanel Spacing="5"><TextBlock Text="02   Choisir vos options" FontWeight="SemiBold"/><TextBlock Text="Dossier d’installation, raccourcis et démarrage à l’ouverture de session." Classes="muted"/></StackPanel>
+              <StackPanel Spacing="5"><TextBlock Text="03   Installer et contrôler" FontWeight="SemiBold"/><TextBlock Text="Les fichiers sont vérifiés avant et après leur copie. Le coffre n’est ni remplacé ni migré." Classes="muted"/></StackPanel>
+            </StackPanel></Border>
+            <TextBlock Text="Windows 64 bits · Installation par utilisateur · Application autonome, sans installation séparée de .NET." Classes="muted"/>
+          </StackPanel>
+          <StackPanel x:Name="DiagnosticPage" IsVisible="False" Spacing="14">
+            <TextBlock Text="Vérifier votre environnement" Classes="heading"/>
+            <TextBlock Text="Les points bloquants doivent être résolus avant de continuer. Aucun fichier de l’application n’est installé pendant ce contrôle." Classes="muted"/>
+            <Border Classes="card"><StackPanel Spacing="13">
+              <TextBlock x:Name="WindowsStatus" Text="Windows : en attente"/><TextBlock x:Name="ArchStatus" Text="Architecture : en attente"/>
+              <TextBlock x:Name="PayloadStatus" Text="Intégrité du paquet : en attente"/><TextBlock x:Name="DestinationStatus" Text="Dossier et accès : en attente"/>
+              <TextBlock x:Name="SpaceStatus" Text="Espace disque et fichiers existants : en attente"/><TextBlock x:Name="ExistingStatus" Text="Installation existante : en attente"/>
+            </StackPanel></Border>
+            <Border Classes="card"><StackPanel Spacing="11">
+              <TextBlock Text="CONNEXION DES CLÉS VIRTUELLES" Foreground="#2559C7" FontWeight="Bold" FontSize="11"/>
+              <TextBlock x:Name="UsbIpStatus" Text="USB/IP : en attente"/><TextBlock x:Name="UsbIpHint" Classes="muted"/>
+              <Button x:Name="InstallUsbDriverButton" Content="Choisir un pilote signé (.inf)…" Click="InstallUsbDriver_Click" HorizontalAlignment="Left"/>
+              <CheckBox x:Name="DeferredUsbCheckBox" IsChecked="False" IsCheckedChanged="DeferredUsb_Changed"><TextBlock Text="Installer uniquement l’application ; je configurerai USB/IP plus tard." MaxWidth="490"/></CheckBox>
+              <TextBlock Text="Sans pilote opérationnel et client USB/IP compatible, les clés virtuelles ne pourront pas être connectées. Aucun pilote n’est téléchargé automatiquement." Classes="muted"/>
+            </StackPanel></Border>
+            <TextBlock x:Name="DiagnosticSummary" FontWeight="SemiBold"/>
+            <Button x:Name="RetryDiagnosticButton" Content="Relancer les vérifications" Click="RetryDiagnostic_Click" HorizontalAlignment="Left"/>
+            <Button Content="Choisir un autre dossier…" Click="ConfigureDestination_Click" HorizontalAlignment="Left"/>
+          </StackPanel>
+          <StackPanel x:Name="OptionsPage" IsVisible="False" Spacing="18">
+            <TextBlock Text="Personnaliser l’installation" Classes="heading"/><TextBlock Text="Les contrôles seront relancés pour le dossier choisi avant toute copie." Classes="muted"/>
+            <Border Classes="card"><StackPanel Spacing="12"><TextBlock Text="DOSSIER D’INSTALLATION" FontSize="11" FontWeight="Bold" Foreground="#2559C7"/>
+              <Grid ColumnDefinitions="*,Auto"><TextBox x:Name="FolderBox" Watermark="Chemin complet de destination" AutomationProperties.Name="Dossier d’installation"/><Button Grid.Column="1" Content="Parcourir…" Click="Browse_Click" Margin="10,0,0,0"/></Grid>
+              <TextBlock Text="Choisissez un dossier vide ou une installation Nexora reconnue. Les dossiers système, partages réseau et liens redirigés sont refusés." Classes="muted"/>
+            </StackPanel></Border>
+            <Border Classes="card"><StackPanel Spacing="13"><CheckBox x:Name="DesktopCheckbox" Content="Créer un raccourci sur le Bureau" IsChecked="True"/><CheckBox x:Name="StartupCheckbox" Content="Lancer Nexora à l’ouverture de session" IsChecked="False"/><CheckBox x:Name="LaunchCheckbox" Content="Ouvrir Nexora à la fin de l’installation" IsChecked="True"/></StackPanel></Border>
+            <TextBlock Text="Fermez Nexora avant une mise à jour de ce dossier. Les instances installées ailleurs ne sont pas arrêtées." Classes="muted"/>
+          </StackPanel>
+          <StackPanel x:Name="ProgressPage" IsVisible="False" Spacing="18">
+            <TextBlock Text="Installation en cours" Classes="heading"/><TextBlock x:Name="InstallStatus" Text="Préparation…" Foreground="#52647C"/>
+            <ProgressBar x:Name="InstallProgress" Minimum="0" Maximum="100" Height="8" Foreground="#2559C7"/><TextBlock x:Name="PercentageText" Text="0 %" HorizontalAlignment="Right" FontSize="22" FontWeight="SemiBold"/>
+            <TextBlock Text="Gardez cette fenêtre ouverte jusqu’au résultat." Classes="muted"/>
+            <Border Classes="card"><ScrollViewer Height="220"><TextBlock x:Name="LogText" FontFamily="Consolas" FontSize="12" Foreground="#405572"/></ScrollViewer></Border>
+          </StackPanel>
+          <StackPanel x:Name="FinishedPage" IsVisible="False" Spacing="20">
+            <TextBlock Text="Nexora est installé." Classes="heading"/><TextBlock Text="Les fichiers installés ont été vérifiés. Vous pouvez ouvrir Nexora ou consulter le compte rendu." FontSize="16" Foreground="#52647C"/>
+            <Border Classes="card"><StackPanel Spacing="10"><TextBlock Text="INSTALLATION TERMINÉE" Foreground="#16704C" FontWeight="Bold" FontSize="11"/><TextBlock x:Name="InstalledLocation"/><TextBlock x:Name="FinishedReadiness" Classes="muted"/></StackPanel></Border>
+            <Button Content="Enregistrer le compte rendu…" Click="SaveReport_Click" HorizontalAlignment="Left"/><TextBlock Text="Le premier enregistrement et la première connexion FIDO2 restent à vérifier dans Nexora." Classes="muted"/>
+          </StackPanel>
+          <StackPanel x:Name="UninstallPage" IsVisible="False" Spacing="20">
+            <TextBlock Text="Désinstaller Nexora" Classes="heading"/><TextBlock Text="Seuls les fichiers et raccourcis enregistrés par cet installateur seront supprimés." Foreground="#52647C"/>
+            <Border Classes="card"><TextBlock Text="Votre coffre, vos identifiants et vos sauvegardes sont conservés." Foreground="#16704C"/></Border><TextBlock x:Name="UninstallStatus"/><Button x:Name="UninstallButton" Content="Désinstaller l’application" Click="Uninstall_Click" HorizontalAlignment="Left"/>
+          </StackPanel>
+        </Grid>
+      </ScrollViewer>
     </Grid>
-
-    <Border Grid.Row="2" Background="#111A31" BorderBrush="#293553" BorderThickness="0,1,0,0" Padding="28,16">
-      <Grid ColumnDefinitions="*,Auto,Auto,Auto">
-        <TextBlock Grid.Column="0" Text="NEXORA  •  SECURITY BY DESIGN" VerticalAlignment="Center" FontSize="11" Foreground="#7086A8"/>
-        <Button Grid.Column="1" x:Name="CancelButton" Content="Fermer" Click="Cancel_Click" MinWidth="100"/>
-        <Button Grid.Column="2" Margin="12,0,0,0" x:Name="BackButton" Content="Retour" Click="Back_Click" IsEnabled="False" MinWidth="95"/>
-        <Button Grid.Column="3" Margin="12,0,0,0" x:Name="NextButton" Classes="primary" Content="Continuer  →" Click="Next_Click" MinWidth="145"/>
-      </Grid>
-    </Border>
+    <Border Grid.Row="2" Background="White" BorderBrush="#DCE3EE" BorderThickness="0,1,0,0" Padding="24,16"><Grid ColumnDefinitions="*,Auto,Auto,Auto">
+      <TextBlock Text="Nexora · Installation locale" Classes="muted" VerticalAlignment="Center"/>
+      <Button Grid.Column="1" x:Name="CancelButton" Content="Annuler" Click="Cancel_Click"/><Button Grid.Column="2" x:Name="BackButton" Content="Retour" Click="Back_Click" Margin="10,0,0,0"/><Button Grid.Column="3" x:Name="NextButton" Content="Continuer →" Classes="primary" Click="Next_Click" Margin="10,0,0,0" MinWidth="140"/>
+    </Grid></Border>
   </Grid>
 </Window>

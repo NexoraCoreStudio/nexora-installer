@@ -1,40 +1,15 @@
-<Application xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="Nexora.Installer.App"
-             RequestedThemeVariant="Dark">
+<Application xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="Nexora.Installer.App" RequestedThemeVariant="Light">
   <Application.Styles>
     <FluentTheme />
-    <Style Selector="Window">
-      <Setter Property="FontFamily" Value="Inter"/>
-      <Setter Property="Background" Value="#0B1020"/>
-      <Setter Property="Foreground" Value="#F4F5FF"/>
-    </Style>
-    <Style Selector="Button">
-      <Setter Property="Background" Value="#242E49"/>
-      <Setter Property="Foreground" Value="#E8E9FF"/>
-      <Setter Property="CornerRadius" Value="9"/>
-      <Setter Property="Padding" Value="18,11"/>
-      <Setter Property="FontWeight" Value="SemiBold"/>
-    </Style>
-    <Style Selector="Button:pointerover">
-      <Setter Property="Background" Value="#364161"/>
-    </Style>
-    <Style Selector="Button.primary">
-      <Setter Property="Background" Value="#8358EF"/>
-      <Setter Property="Foreground" Value="White"/>
-    </Style>
-    <Style Selector="Button.primary:pointerover">
-      <Setter Property="Background" Value="#9E7AFA"/>
-    </Style>
-    <Style Selector="TextBox">
-      <Setter Property="Background" Value="#141E34"/>
-      <Setter Property="BorderBrush" Value="#354361"/>
-      <Setter Property="Foreground" Value="White"/>
-      <Setter Property="CornerRadius" Value="9"/>
-      <Setter Property="Padding" Value="12,10"/>
-    </Style>
-    <Style Selector="CheckBox">
-      <Setter Property="Foreground" Value="#DDE4FA"/>
-    </Style>
+    <Style Selector="Window"><Setter Property="FontFamily" Value="Inter"/><Setter Property="Background" Value="#F4F6FA"/><Setter Property="Foreground" Value="#17263D"/></Style>
+    <Style Selector="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/></Style>
+    <Style Selector="Button"><Setter Property="Background" Value="White"/><Setter Property="Foreground" Value="#253B58"/><Setter Property="BorderBrush" Value="#CFD8E6"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="7"/><Setter Property="Padding" Value="17,11"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
+    <Style Selector="Button.primary"><Setter Property="Background" Value="#2559C7"/><Setter Property="Foreground" Value="White"/><Setter Property="BorderBrush" Value="#2559C7"/></Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#1744A2"/><Setter Property="Foreground" Value="White"/></Style>
+    <Style Selector="TextBox"><Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#B6C4D8"/><Setter Property="Foreground" Value="#17263D"/><Setter Property="CornerRadius" Value="6"/><Setter Property="Padding" Value="12,10"/></Style>
+    <Style Selector="Border.card"><Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#DCE3EE"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="10"/><Setter Property="Padding" Value="22"/></Style>
+    <Style Selector="TextBlock.heading"><Setter Property="FontSize" Value="28"/><Setter Property="FontWeight" Value="Bold"/></Style>
+    <Style Selector="TextBlock.muted"><Setter Property="Foreground" Value="#52647C"/><Setter Property="FontSize" Value="13"/></Style>
+    <Style Selector="CheckBox"><Setter Property="Foreground" Value="#253B58"/></Style>
   </Application.Styles>
 </Application>
